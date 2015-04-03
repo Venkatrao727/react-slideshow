@@ -1,0 +1,67 @@
+.slide-preview-container {
+	width: 15%;
+	overflow-y:scroll;
+	min-height: 800px;
+	position: fixed;
+  	height: 100%;
+}
+
+.slide-main-container {
+	width: 83%;
+	min-height: 100%;
+	overflow: hidden;
+	left: 16% !important;
+	position: fixed;
+  	top: 0;
+  	left: 10%;
+}
+
+body {
+	overflow: hidden;
+}
+
+.slide-preview {
+	border: 1px solid gray;
+	margin: 5px;
+	cursor: pointer;
+}
+
+.slide-preview-focussed {
+	background: rgb(198, 0, 255);
+}
+
+h4, h1 {
+	text-align: center;
+}
+
+.slide-main-container input {
+	font-size: 20px;
+	font-weight: bold;
+	width: 82%;
+	margin-left: 2%;
+	text-align: center;
+}
+
+.slide-preview pre {
+	font-size: 5px;
+	width: 98%;
+}
+.slide-preview h4 {
+	font-size: 12px;
+	width: 98%;
+}
+
+.slide-main-container pre, .slide-main-container textarea {
+	font-size: 20px;
+	width: 82%;
+	margin-left: 10%;
+	min-height: 500px; 
+}
+
+.add-slide {
+	float: left;
+}
+
+.delete-slide {
+	float: right;
+}

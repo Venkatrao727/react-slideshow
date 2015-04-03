@@ -1,0 +1,266 @@
+<div>
+<div id="app-main-container"></div>
+<script type="text/jsx">
+	var SL = SL || {};
+
+	/** @jsx React.DOM */
+	var  ModelMixin = { 
+	  componentDidMount: function() {
+	  // Whenever there may be a change in the Backbone data, trigger a reconcile.
+	    this.getBackboneModels().forEach(this.injectModel, this);
+	  },
+	  componentWillUnmount: function() {
+	  // Ensure that we clean up any dangling references when the component is
+	    // destroyed.
+	    this.__syncedModels.forEach(function(model) {
+	      model.off(null, model.__updater, this);
+	    }, this);
+	  },
+	  injectModel: function(model){
+	  if(!this.__syncedModels) this.__syncedModels = []
+	    if(!~this.__syncedModels.indexOf(model)){
+	      var updater = this.forceUpdate.bind(this, null);
+	      model.__updater = updater;
+	      model.on('add change remove', updater, this);
+	      this.__syncedModels.push(model);
+	    }
+	  },
+	  bindTo: function(model, key){
+	      return {
+	          value: model.get(key),
+	          requestChange: function(value){
+	          	  model.set(key, value);
+	          }.bind(this)
+	      }
+	   }  
+	}
+
+	var BackboneMixin = {
+		componentDidMount: function () {
+			// Whenever there may be a change in the Backbone data, trigger a
+			// reconcile.
+			this.getBackboneCollections().forEach(function (collection) {
+				// explicitly bind `null` to `forceUpdate`, as it demands a callback and
+				// React validates that it's a function. `collection` events passes
+				// additional arguments that are not functions
+				collection.on('add remove change', this.forceUpdate.bind(this, null));
+			}, this);
+		},
+
+		componentWillUnmount: function () {
+			// Ensure that we clean up any dangling references when the component is
+			// destroyed.
+			this.getBackboneCollections().forEach(function (collection) {
+				collection.off(null, null, this);
+			}, this);
+		}
+	};
+
+	SL.SlidePreView = React.createClass({
+		mixins:[ModelMixin],
+
+		//This is not necessary as below method defaults to true
+		shouldComponentUpdate: function(nextState) {
+			return true;
+		},
+
+		getBackboneModels: function() {
+			return [this.props.slide];
+		},
+
+		render: function() {
+			return (
+					<div className={this.props.focussedIndex == this.props.slide.get("position") ? "slide-preview slide-preview-focussed":"slide-preview"}>
+						<h4>{this.props.slide.get("title")}</h4>
+						<pre>{this.props.slide.get("content")}</pre>
+					</div>
+				);
+			},
+		}
+	);
+	
+	SL.SlideView = React.createClass({
+		mixins:[ModelMixin],	
+
+		// shouldComponentUpdate: function(nextState) {
+		// 	debugger;
+  // 			return false;
+		// },
+
+		getBackboneModels: function() {
+			return [this.props.slide];
+		},
+
+		getInitialState: function() {
+			return {
+				isEditingTitle: false,
+				isEditingContent: false,
+			}
+		},
+
+		handleEditTitle: function(event) {
+			this.setState({isEditingTitle: true});
+			//this.refs.titleId.getDOMNode().focus();
+			event.stopPropagation();
+		},
+
+		handleEditContent: function(event) {
+			this.setState({isEditingContent: true});
+			//this.refs.contentId.getDOMNode().focus();
+
+			//Stop the event propogation to parent
+			event.stopPropagation();
+		},
+
+		handleSubmit: function() {
+			this.setState({
+				isEditingTitle: false,
+				isEditingContent: false,
+			});
+
+			this.props.slide.handleSubmit();
+		},
+
+		componentWillReceiveProps: function(nextProps) {
+			//debugger;
+		},
+
+		render: function() {
+			var titleStyle = {};
+			var titleEditStyle = {};
+			var contentStyle = {};
+			var contentEditStyle = {};
+			if(this.state.isEditingTitle) {
+				titleStyle = {display: 'none'};
+				titleEditStyle = {};
+			} else {
+				titleStyle = {};
+				titleEditStyle = {display: 'none'};
+			}
+
+			if(this.state.isEditingContent) {
+				contentStyle = {display: 'none'};
+				contentEditStyle = {};
+			} else {
+				contentStyle = {};
+				contentEditStyle = {display: 'none'};
+			}
+
+			return (
+					<div className="slide-main-container">
+						<h1 style={titleStyle} onDoubleClick={this.handleEditTitle}>{this.props.slide.get("title")}</h1>
+						<h1><input type="text" style={titleEditStyle} valueLink={this.bindTo(this.props.slide,"title")} onBlur={this.handleSubmit}/></h1>
+						<pre style={contentStyle} onDoubleClick={this.handleEditContent}>{this.props.slide.get("content")}</pre>
+						<textarea style={contentEditStyle} valueLink={this.bindTo(this.props.slide,"content")} onBlur={this.handleSubmit}/>
+					</div>
+				);
+			},
+		}
+	);
+
+	SL.App = React.createClass({
+		mixins: [BackboneMixin],
+
+		getBackboneCollections: function() {
+			return [this.props.slideList];
+		},
+
+		getInitialState: function() {
+			return {mainContentIndex: 0}
+		},
+
+
+		componentDidMount: function() {
+			var that = this;
+			$("body").keydown(function(e) {
+			  if(e.keyCode == 37) { // left
+			  	if(that.state.mainContentIndex > 0) {
+			  		that.setState({mainContentIndex: that.state.mainContentIndex-1});
+			  	}
+			  }
+			  else if(e.keyCode == 39) { // right
+			  	if(that.state.mainContentIndex < that.props.slideList.length-1) {
+			  		that.setState({mainContentIndex: that.state.mainContentIndex+1});;
+			  	}
+			  }
+			});
+		},
+
+		handleClick: function(index) {
+			this.setState({mainContentIndex: index});
+		},
+
+		addSlide: function(index) {
+			var slide = new SL.SlideModel();
+			slide.set("position", index+1);
+			slide.handleSubmit();
+			this.props.slideList.add(slide, {at: index+1});
+			
+			for(var i = index+2;i < this.props.slideList.length;i++) {
+				var model = this.props.slideList.models[i];
+				model.set("position", model.get("position")+1);
+				//model.handleSubmit();
+			}
+			this.setState({mainContentIndex: slide.get("position")});
+		},
+
+		removeSlide: function(slide) {
+			debugger
+			var i = slide.get("position");
+			slide.destroy();
+			for(;i < this.props.slideList.length;i++) {
+				var model = this.props.slideList.models[i];
+				model.set("position", i);
+				//model.handleSubmit();
+			}
+		},
+
+		handleKeyEvents: function(event) {
+			var elem = $('.slide-main-container')[0];
+			if (elem.requestFullscreen) {
+				elem.requestFullscreen();
+			} else if (elem.msRequestFullscreen) {
+				elem.msRequestFullscreen();
+			} else if (elem.mozRequestFullScreen) {
+				elem.mozRequestFullScreen();
+			} else if (elem.webkitRequestFullscreen) {
+				elem.webkitRequestFullscreen();
+			}
+		},
+
+		render: function() {
+			var slides = this.props.slideList.models.map(function(slide, index) {
+				return (
+						<div className="SlidePreViewContainer" key={slide.cid}
+						onClick={this.handleClick.bind(this, index)}>
+							<div>
+								<button className="add-slide" onClick={this.addSlide.bind(this, index)}>+</button>
+								<button className="delete-slide" onClick={this.removeSlide.bind(this, slide)}>X</button>
+							</div>
+							<SL.SlidePreView  
+								focussedIndex = {this.state.mainContentIndex}
+								slide = {slide}/>
+						</div>
+					);
+			}, this);
+		
+			return (
+				<div className="appContainer" onDoubleClick= {this.handleKeyEvents}>
+					<div className="slide-preview-container">
+						{slides}
+					</div>
+					<SL.SlideView 
+						slide = {this.props.slideList.models[this.state.mainContentIndex]}
+						onMouseEnter= {this.handleClick}/>
+				</div>
+				);
+		}
+	});
+	
+	SL.SlidesList.fetch({
+		reset: true,
+		success: function() {
+			React.render(<SL.App slideList={SL.SlidesList}/>, document.getElementById("app-main-container"))
+		}});
+</script>
+</div>
